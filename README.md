@@ -1,6 +1,6 @@
-# Mini Investment Intelligence & Risk Management Platform
+# Aegis – Mini Investment Intelligence & Risk Management Platform
 
-A real-time educational investment and risk management platform built for ATLAS, a 4-member CSE mini-project team.
+A real-time educational investment and risk management platform built for Aegis, a 4-member CSE mini-project team.
 
 ## Overview
 This project is a functional full-stack web application for portfolio tracking, asset analysis, risk monitoring, investment simulation, and educational market intelligence. It is designed for academic demonstration and clearly states that it is not financial advice.
@@ -56,8 +56,8 @@ npm run dev:backend
 npm run dev:frontend
 
 ## Demo credentials
-- Email: admin@atlas.local
-- Password: Atlas@123
+- Email: admin@aegis.local
+- Password: Aegis@123
 
 ## Default ports
 - Frontend: http://localhost:5173

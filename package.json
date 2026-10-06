@@ -1,5 +1,5 @@
 {
-  "name": "atlas-investment-platform",
+  "name": "aegis-investment-platform",
   "private": true,
   "workspaces": [
     "backend",

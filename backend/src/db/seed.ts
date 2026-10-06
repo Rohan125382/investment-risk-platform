@@ -1,113 +1,91 @@
-CREATE TABLE IF NOT EXISTS users (
-  id SERIAL PRIMARY KEY,
-  full_name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(50) DEFAULT 'user',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+import { query } from './index';
+import bcrypt from 'bcryptjs';
 
-CREATE TABLE IF NOT EXISTS portfolios (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  virtual_cash NUMERIC(12,2) DEFAULT 100000,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+const ASSET_SEED = [
+  { symbol: 'AAPL', name: 'Apple Inc.', category: 'Technology', exchange: 'NASDAQ', current_price: 214.36, day_change: 3.28, percent_change: 1.56, volume: 64230000 },
+  { symbol: 'MSFT', name: 'Microsoft', category: 'Technology', exchange: 'NASDAQ', current_price: 432.11, day_change: 7.18, percent_change: 1.69, volume: 21640000 },
+  { symbol: 'NVDA', name: 'NVIDIA', category: 'Technology', exchange: 'NASDAQ', current_price: 131.72, day_change: 6.11, percent_change: 4.88, volume: 48290000 },
+  { symbol: 'AMZN', name: 'Amazon', category: 'Consumer', exchange: 'NASDAQ', current_price: 186.7, day_change: 2.41, percent_change: 1.31, volume: 31200000 },
+  { symbol: 'GOOGL', name: 'Alphabet', category: 'Technology', exchange: 'NASDAQ', current_price: 176.3, day_change: 1.74, percent_change: 1.0, volume: 19400000 },
+  { symbol: 'TSLA', name: 'Tesla', category: 'Automotive', exchange: 'NASDAQ', current_price: 244.95, day_change: -5.86, percent_change: -2.34, volume: 52000000 },
+  { symbol: 'V', name: 'Visa', category: 'Financial', exchange: 'NYSE', current_price: 271.4, day_change: 2.25, percent_change: 0.84, volume: 6680000 },
+  { symbol: 'JPM', name: 'JPMorgan Chase', category: 'Financial', exchange: 'NYSE', current_price: 200.22, day_change: 1.24, percent_change: 0.62, volume: 9410000 },
+  { symbol: 'XAU', name: 'Gold', category: 'Commodity', exchange: 'COMEX', current_price: 2312.12, day_change: 10.11, percent_change: 0.44, volume: 1200000 },
+  { symbol: 'BTC', name: 'Bitcoin', category: 'Crypto', exchange: 'Crypto', current_price: 64230.9, day_change: 2120.28, percent_change: 3.42, volume: 2860000000 },
+  { symbol: 'ETH', name: 'Ethereum', category: 'Crypto', exchange: 'Crypto', current_price: 3512.16, day_change: 127.42, percent_change: 3.77, volume: 1430000000 },
+  { symbol: 'BND', name: 'Vanguard Total Bond', category: 'Bonds', exchange: 'NASDAQ', current_price: 70.65, day_change: 0.12, percent_change: 0.17, volume: 7200000 },
+  { symbol: 'SPY', name: 'SPDR S&P 500', category: 'Index', exchange: 'NYSE', current_price: 544.12, day_change: 5.23, percent_change: 0.97, volume: 18700000 }
+];
 
-CREATE TABLE IF NOT EXISTS assets (
-  id SERIAL PRIMARY KEY,
-  symbol VARCHAR(20) NOT NULL UNIQUE,
-  name VARCHAR(255) NOT NULL,
-  category VARCHAR(100) NOT NULL,
-  exchange VARCHAR(100),
-  currency VARCHAR(20) DEFAULT 'USD',
-  current_price NUMERIC(12,2) DEFAULT 0,
-  day_change NUMERIC(12,2) DEFAULT 0,
-  percent_change NUMERIC(8,4) DEFAULT 0,
-  volume BIGINT DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+async function seedAssets() {
+  for (const asset of ASSET_SEED) {
+    await query(
+      `INSERT INTO assets (symbol, name, category, exchange, currency, current_price, day_change, percent_change, volume)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (symbol) DO UPDATE SET
+         name = EXCLUDED.name,
+         category = EXCLUDED.category,
+         exchange = EXCLUDED.exchange,
+         currency = EXCLUDED.currency,
+         current_price = EXCLUDED.current_price,
+         day_change = EXCLUDED.day_change,
+         percent_change = EXCLUDED.percent_change,
+         volume = EXCLUDED.volume;`,
+      [asset.symbol, asset.name, asset.category, asset.exchange, 'USD', asset.current_price, asset.day_change, asset.percent_change, asset.volume]
+    );
 
-CREATE TABLE IF NOT EXISTS portfolio_assets (
-  id SERIAL PRIMARY KEY,
-  portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
-  asset_symbol VARCHAR(20) NOT NULL REFERENCES assets(symbol),
-  quantity NUMERIC(12,4) NOT NULL DEFAULT 0,
-  average_cost NUMERIC(12,2) NOT NULL DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (portfolio_id, asset_symbol)
-);
+    await query(
+      `INSERT INTO market_data (asset_symbol, price, volume, price_change, percent_change)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT DO NOTHING;`,
+      [asset.symbol, asset.current_price, asset.volume, asset.day_change, asset.percent_change]
+    );
+  }
+}
 
-CREATE TABLE IF NOT EXISTS transactions (
-  id SERIAL PRIMARY KEY,
-  portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  asset_symbol VARCHAR(20) NOT NULL REFERENCES assets(symbol),
-  transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('BUY', 'SELL')),
-  quantity NUMERIC(12,4) NOT NULL,
-  price NUMERIC(12,2) NOT NULL,
-  total_amount NUMERIC(12,2) NOT NULL,
-  transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  notes TEXT
-);
+async function seedUser() {
+  const passwordHash = await bcrypt.hash('Aegis@123', 10);
+  const userResult = await query<{ id: number }>(
+    `INSERT INTO users (full_name, email, password_hash, role)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (email) DO NOTHING
+     RETURNING id;`,
+    ['Aegis Admin', 'admin@aegis.local', passwordHash, 'admin']
+  );
 
-CREATE TABLE IF NOT EXISTS watchlists (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name VARCHAR(100) DEFAULT 'Default',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  const id = userResult.rows[0]?.id;
+  if (!id) {
+    const existing = await query<{ id: number }>(`SELECT id FROM users WHERE email = $1`, ['admin@aegis.local']);
+    if (existing.rows[0]) {
+      return existing.rows[0].id;
+    }
+    return null;
+  }
 
-CREATE TABLE IF NOT EXISTS watchlist_assets (
-  id SERIAL PRIMARY KEY,
-  watchlist_id INTEGER NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
-  asset_symbol VARCHAR(20) NOT NULL REFERENCES assets(symbol),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (watchlist_id, asset_symbol)
-);
+  const portfolioExists = await query<{ id: number }>(`SELECT id FROM portfolios WHERE user_id = $1 LIMIT 1`, [id]);
+  if (!portfolioExists.rows[0]) {
+    await query(`INSERT INTO portfolios (user_id, name, description, virtual_cash) VALUES ($1,$2,$3,$4)`, [id, 'Core Growth Portfolio', 'Demo portfolio for educational analysis', 100000]);
+  }
 
-CREATE TABLE IF NOT EXISTS market_data (
-  id SERIAL PRIMARY KEY,
-  asset_symbol VARCHAR(20) NOT NULL REFERENCES assets(symbol),
-  price NUMERIC(12,2) NOT NULL,
-  volume BIGINT DEFAULT 0,
-  price_change NUMERIC(12,2) DEFAULT 0,
-  percent_change NUMERIC(8,4) DEFAULT 0,
-  captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  const watchlistExists = await query<{ id: number }>(`SELECT id FROM watchlists WHERE user_id = $1 LIMIT 1`, [id]);
+  if (!watchlistExists.rows[0]) {
+    const watchlist = await query<{ id: number }>(`INSERT INTO watchlists (user_id, name) VALUES ($1,$2) RETURNING id`, [id, 'Tech Watchlist']);
+    const symbols = ['AAPL', 'MSFT', 'NVDA', 'BTC', 'XAU'];
+    for (const symbol of symbols) {
+      await query(`INSERT INTO watchlist_assets (watchlist_id, asset_symbol) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [watchlist.rows[0].id, symbol]);
+    }
+  }
 
-CREATE TABLE IF NOT EXISTS alerts (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE CASCADE,
-  type VARCHAR(50) NOT NULL,
-  title VARCHAR(255) NOT NULL,
-  message TEXT NOT NULL,
-  severity VARCHAR(20) DEFAULT 'medium',
-  is_read BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  return id;
+}
 
-CREATE TABLE IF NOT EXISTS risk_metrics (
-  id SERIAL PRIMARY KEY,
-  portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
-  risk_score NUMERIC(5,2) DEFAULT 0,
-  volatility NUMERIC(8,4) DEFAULT 0,
-  sharpe_ratio NUMERIC(8,4) DEFAULT 0,
-  max_drawdown NUMERIC(8,4) DEFAULT 0,
-  var_95 NUMERIC(12,2) DEFAULT 0,
-  diversification_score NUMERIC(8,4) DEFAULT 0,
-  concentration_risk NUMERIC(8,4) DEFAULT 0,
-  summary TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+async function main() {
+  await seedAssets();
+  const userId = await seedUser();
+  console.log('Database seeded successfully for Aegis.');
+}
 
-CREATE INDEX IF NOT EXISTS idx_portfolios_user_id ON portfolios(user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_portfolio_id ON transactions(portfolio_id);
-CREATE INDEX IF NOT EXISTS idx_watchlist_assets_watchlist_id ON watchlist_assets(watchlist_id);
-CREATE INDEX IF NOT EXISTS idx_market_data_asset_symbol ON market_data(asset_symbol);
-CREATE INDEX IF NOT EXISTS idx_alerts_user_id ON alerts(user_id);
+main().catch((err) => {
+  console.error('Seed failed:', err);
+  process.exit(1);
+});

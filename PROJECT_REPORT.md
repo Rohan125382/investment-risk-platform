@@ -1,0 +1,96 @@
+# Project Report
+
+## Abstract
+The Aegis Mini Investment Intelligence & Risk Management Platform is an educational full-stack web application built by the Aegis team. The platform helps users simulate portfolio tracking, assess risk using educational metrics, monitor asset performance, and review market activity. The application is designed for learning, demonstration, and portfolio analytics rather than financial advice.
+
+## Introduction
+Modern investors require access to data-driven portfolio insight. However, beginners often lack a tool that combines portfolio simulation, asset overview, and risk analytics in a simple, understandable interface. This project addresses that need by building a web platform with portfolio tracking, portfolio analysis, market monitoring, and risk evaluation.
+
+## Problem Statement
+Students and beginners often do not have access to a complete and understandable investment analytics environment. Professional tools are too advanced and expensive, and simplified mockups do not support actual calculations, storage, or backend logic. A college mini-project needs to balance educational value, technical completeness, and a professional UI.
+
+## Objectives
+- Build a working portfolio management system
+- Implement authentication and secure data flow
+- Support real-time demo market updates
+- Compute risk and investment metrics
+- Create a responsive fintech dashboard
+- Provide educational investment insights without giving financial guidance
+
+## Existing System
+Existing solutions are predominantly proprietary, expensive, or inaccessible for student projects. Mock frontend demos rarely include persistent backend logic or actual calculations.
+
+## Proposed System
+The proposed system includes a web application with frontend, backend, database, risk engine, and market data service. Users can register, create portfolios, add assets, analyze holdings, and view risk warnings. The platform includes a simulation environment and tutorial-style investment insights.
+
+## Methodology
+The system follows a modular architecture using React for the interface, Express + TypeScript for business logic, PostgreSQL for persistence, and a risk engine for calculations. Data flows are secured through JWT-based authentication, bcrypt password hashing, validation, and authorization checks.
+
+## System Architecture
+The architecture uses:
+- Frontend: React + Tailwind + Recharts
+- Backend: Express + TypeScript
+- Database: PostgreSQL
+- Market Data: Demo provider + SSE feed
+- Risk Engine: Educational portfolio metrics
+
+## Database Design
+Tables include users, portfolios, portfolio_assets, transactions, assets, market_data, watchlist, watchlist_assets, alerts, and risk_metrics.
+
+## Modules
+- Authentication Module
+- Portfolio Module
+- Asset Explorer Module
+- Risk Analysis Module
+- Analytics Module
+- Watchlist Module
+- Alerts Module
+- Investment Simulator Module
+- Admin Dashboard Module
+
+## Algorithms
+The project includes educational calculations for:
+- Volatility
+- Sharpe ratio
+- Max drawdown
+- VaR
+- Beta
+- Correlation matrix
+- Diversification score
+- Concentration risk
+- Risk score normalization
+
+## Screenshots Placeholder
+- Landing page screenshot
+- Dashboard screenshot
+- Portfolio page screenshot
+- Risk analysis page screenshot
+- Asset explorer screenshot
+
+## Testing
+The project includes unit tests, API tests, authentication tests, and portfolio/risk calculation tests.
+
+## Results
+The platform successfully demonstrates:
+- user registration/login
+- portfolio management
+- market data simulation
+- dashboard analytics
+- risk metrics
+- alert generation
+- persistent storage
+
+## Limitations
+- Demo market data is used instead of live broker data
+- Risk calculations are educational and not investment advice
+- The project is a learning prototype rather than a production financial platform
+
+## Future Scope
+- Real stock market API integration
+- Advanced machine learning risk predictions
+- Multi-user organizations and portfolio sharing
+- Tax and compliance modules
+- Real-time charting optimizations
+
+## Conclusion
+The Aegis platform is a strong educational mini-project that connects frontend, backend, database, analytics, and demo real-time data in one full-stack system. It reflects professional fintech design while staying appropriate for a student environment.
