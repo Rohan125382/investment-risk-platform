@@ -1,21 +1,16 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { env } from '../config/env';
-
-export async function hashPassword(password: string) {
-  return bcrypt.hash(password, 10);
+export function roundToTwo(value: number) {
+  return Number(value.toFixed(2));
 }
 
-export async function comparePassword(password: string, hash: string) {
-  return bcrypt.compare(password, hash);
+export function calculateCurrentValue(price: number, quantity: number) {
+  return price * quantity;
 }
 
-export function signToken(user: { id: number; email: string; role: string }) {
-  return jwt.sign({ id: user.id, email: user.email, role: user.role }, env.jwtSecret, {
-    expiresIn: env.jwtExpiresIn,
-  });
+export function calculateUnrealizedPnL(currentPrice: number, averageCost: number, quantity: number) {
+  return (currentPrice - averageCost) * quantity;
 }
 
-export function verifyToken(token: string) {
-  return jwt.verify(token, env.jwtSecret) as { id: number; email: string; role: string };
+export function calculatePercentReturn(currentPrice: number, averageCost: number) {
+  if (!averageCost) return 0;
+  return ((currentPrice - averageCost) / averageCost) * 100;
 }

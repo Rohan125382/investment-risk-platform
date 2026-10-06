@@ -1,5 +1,17 @@
-import { Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 
-export function notFoundHandler(req: Request, res: Response) {
-  res.status(404).json({ message: `Route not found: ${req.originalUrl}` });
-}
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests, please try again later.' },
+});
+
+export const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Rate limit exceeded.' },
+});

@@ -1,28 +1,21 @@
-export type User = {
-  id: number;
-  fullName: string;
-  email: string;
-  role: string;
-};
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { env } from '../config/env';
 
-export type Asset = {
-  symbol: string;
-  name: string;
-  category: string;
-  exchange: string;
-  currency: string;
-  currentPrice: number;
-  dayChange: number;
-  percentChange: number;
-  volume: number;
-};
+export async function hashPassword(password: string) {
+  return bcrypt.hash(password, 10);
+}
 
-export type PortfolioAsset = {
-  id: number;
-  portfolioId: number;
-  assetSymbol: string;
-  quantity: number;
-  averageCost: number;
-};
+export async function comparePassword(password: string, hash: string) {
+  return bcrypt.compare(password, hash);
+}
 
-export type AlertSeverity = 'low' | 'medium' | 'high';
+export function signToken(user: { id: number; email: string; role: string }) {
+  return jwt.sign({ id: user.id, email: user.email, role: user.role }, env.jwtSecret, {
+    expiresIn: env.jwtExpiresIn,
+  });
+}
+
+export function verifyToken(token: string) {
+  return jwt.verify(token, env.jwtSecret) as { id: number; email: string; role: string };
+}

@@ -1,16 +1,7 @@
-export function roundToTwo(value: number) {
-  return Number(value.toFixed(2));
+export function isNonEmptyString(value: unknown) {
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
-export function calculateCurrentValue(currentPrice: number, quantity: number) {
-  return currentPrice * quantity;
-}
-
-export function calculateUnrealizedPnL(currentPrice: number, averageCost: number, quantity: number) {
-  return (currentPrice - averageCost) * quantity;
-}
-
-export function calculatePercentReturn(currentPrice: number, averageCost: number) {
-  if (!averageCost) return 0;
-  return ((currentPrice - averageCost) / averageCost) * 100;
+export function isValidEmail(value: unknown) {
+  return typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

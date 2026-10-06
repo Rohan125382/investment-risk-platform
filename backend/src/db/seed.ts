@@ -56,9 +56,7 @@ async function seedUser() {
   const id = userResult.rows[0]?.id;
   if (!id) {
     const existing = await query<{ id: number }>(`SELECT id FROM users WHERE email = $1`, ['admin@aegis.local']);
-    if (existing.rows[0]) {
-      return existing.rows[0].id;
-    }
+    if (existing.rows[0]) return existing.rows[0].id;
     return null;
   }
 
@@ -72,20 +70,44 @@ async function seedUser() {
     const watchlist = await query<{ id: number }>(`INSERT INTO watchlists (user_id, name) VALUES ($1,$2) RETURNING id`, [id, 'Tech Watchlist']);
     const symbols = ['AAPL', 'MSFT', 'NVDA', 'BTC', 'XAU'];
     for (const symbol of symbols) {
-      await query(`INSERT INTO watchlist_assets (watchlist_id, asset_symbol) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [watchlist.rows[0].id, symbol]);
+      await query(`INSERT INTO watchlist_assets (watchlist_id, asset_symbol) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [watchlist.rows[0].id, symbol]);
     }
   }
 
   return id;
 }
 
-async function main() {
-  await seedAssets();
-  const userId = await seedUser();
-  console.log('Database seeded successfully for Aegis.');
+async function seedPortfolioData(userId: number | null) {
+  if (!userId) return;
+  const portfolio = await query<{ id: number }>(`SELECT id FROM portfolios WHERE user_id = $1 LIMIT 1`, [userId]);
+  const portfolioId = portfolio.rows[0]?.id;
+  if (!portfolioId) return;
+
+  const holdings = [
+    { assetSymbol: 'AAPL', quantity: 120, averageCost: 192.5 },
+    { assetSymbol: 'MSFT', quantity: 80, averageCost: 410.0 },
+    { assetSymbol: 'NVDA', quantity: 150, averageCost: 98.2 },
+    { assetSymbol: 'XAU', quantity: 15, averageCost: 2225.0 },
+    { assetSymbol: 'BTC', quantity: 0.6, averageCost: 55000 }
+  ];
+
+  for (const item of holdings) {
+    await query(
+      `INSERT INTO portfolio_assets (portfolio_id, asset_symbol, quantity, average_cost)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (portfolio_id, asset_symbol) DO UPDATE SET quantity = EXCLUDED.quantity, average_cost = EXCLUDED.average_cost;`,
+      [portfolioId, item.assetSymbol, item.quantity, item.averageCost]
+    );
+  }
+
+  await query(`INSERT INTO transactions (portfolio_id, user_id, asset_symbol, transaction_type, quantity, price, total_amount, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING;`, [portfolioId, userId, 'AAPL', 'BUY', 120, 192.5, 23100, 'Initial allocation']);
+  await query(`INSERT INTO transactions (portfolio_id, user_id, asset_symbol, transaction_type, quantity, price, total_amount, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING;`, [portfolioId, userId, 'MSFT', 'BUY', 80, 410.0, 32800, 'Technology allocation']);
+  await query(`INSERT INTO transactions (portfolio_id, user_id, asset_symbol, transaction_type, quantity, price, total_amount, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING;`, [portfolioId, userId, 'NVDA', 'BUY', 150, 98.2, 14730, 'Growth position']);
 }
 
-main().catch((err) => {
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+export async function seedDatabase() {
+  await seedAssets();
+  const userId = await seedUser();
+  await seedPortfolioData(userId);
+  console.log('Aegis seed data loaded successfully.');
+}
