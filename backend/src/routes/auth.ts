@@ -1,70 +1,99 @@
-type PortfolioSummary = {
-  portfolioId: number;
-  totalValue: number;
-  totalCost: number;
-  positions: Array<{ symbol: string; quantity: number; averageCost: number; currentPrice: number; value: number; weight: number; pnl: number }>;
-};
+import { Request, Response, Router } from 'express';
+import bcrypt from 'bcryptjs';
+import { query } from '../db';
+import { authenticateToken } from '../middleware/auth';
+import { hashPassword, signToken, comparePassword } from '../utils/crypto';
+import { isValidEmail, isNonEmptyString } from '../utils/validation';
 
-function calculateMean(values: number[]) {
-  if (!values.length) return 0;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
+const router = Router();
 
-function calculateStdDev(values: number[]) {
-  if (!values.length) return 0;
-  const mean = calculateMean(values);
-  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
-  return Math.sqrt(variance);
-}
+router.post('/register', async (req: Request, res: Response) => {
+  const { fullName, email, password } = req.body;
 
-export function computeRiskMetrics(summary: PortfolioSummary) {
-  const weights = summary.positions.map((p) => p.weight);
-  const volatility = calculateStdDev(weights.length ? weights.map((w) => w * 100) : [0]) / 100;
-  const sharpeRatio = (summary.totalValue > 0 ? (summary.totalValue / 100000) - 0.04 : 0) / (volatility || 1);
-  const maxDrawdown = Math.min(0.32, Math.max(0.06, volatility * 2.6));
-  const var95 = summary.totalValue * (0.015 + volatility * 0.6);
-  const diversification = Math.max(15, 100 - (weights.length ? weights.reduce((acc, w) => acc + Math.abs(w - 1 / weights.length), 0) * 80 : 0));
-  const concentration = Math.max(0, 100 - diversification);
-  const riskScoreRaw = (volatility * 100) * 0.35 + concentration * 0.35 + maxDrawdown * 100 * 0.2 + (var95 / Math.max(summary.totalValue, 1)) * 150;
-  const riskScore = Math.min(100, Math.max(0, riskScoreRaw));
-
-  let category = 'Low Risk';
-  if (riskScore > 80) category = 'Very High Risk';
-  else if (riskScore > 60) category = 'High Risk';
-  else if (riskScore > 30) category = 'Moderate Risk';
-
-  const summaryText = `Portfolio risk score is ${riskScore.toFixed(1)} / 100. ${category}. This assessment is educational and does not predict future returns.`;
-
-  return {
-    riskScore: Number(riskScore.toFixed(2)),
-    volatility: Number(volatility.toFixed(4)),
-    sharpeRatio: Number(sharpeRatio.toFixed(4)),
-    maxDrawdown: Number(maxDrawdown.toFixed(4)),
-    var95: Number(var95.toFixed(2)),
-    diversificationScore: Number(diversification.toFixed(2)),
-    concentrationRisk: Number(concentration.toFixed(2)),
-    category,
-    summary: summaryText
-  };
-}
-
-export function computePortfolioHealth(summary: PortfolioSummary) {
-  const largestWeight = summary.positions.reduce((max, item) => Math.max(max, item.weight), 0);
-  const topCorrelated = summary.positions.filter((item) => item.weight > 0.2).length;
-  const avgReturn = summary.positions.reduce((sum, item) => sum + item.pnl / Math.max(item.value, 1), 0) / Math.max(summary.positions.length, 1);
-
-  const narrative: string[] = [];
-  if (largestWeight > 0.45) {
-    narrative.push(`Technology and major holdings represent ${Math.round(largestWeight * 100)}% of the portfolio, creating concentration risk.`);
-  }
-  if (topCorrelated > 2) {
-    narrative.push('Several holdings show strong overlap in sector exposure, which may reduce diversification benefit.');
-  }
-  if (avgReturn > 0.08) {
-    narrative.push('The portfolio is currently showing positive market performance, though volatility should still be monitored.');
-  } else {
-    narrative.push('The portfolio is under pressure relative to recent market changes, so monitoring volatility and allocation is important.');
+  if (!isNonEmptyString(fullName) || !isValidEmail(email) || !isNonEmptyString(password) || password.length < 6) {
+    return res.status(400).json({ message: 'Valid full name, email, and password (minimum 6 chars) are required.' });
   }
 
-  return narrative;
-}
+  const existing = await query('SELECT id FROM users WHERE email = $1', [String(email).trim().toLowerCase()]);
+  if (existing.rows.length > 0) {
+    return res.status(409).json({ message: 'User already exists with this email.' });
+  }
+
+  const hashed = await hashPassword(password);
+  const result = await query<{ id: number; email: string; role: string; full_name: string }>(
+    `INSERT INTO users (full_name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, full_name, email, role`,
+    [String(fullName).trim(), String(email).trim().toLowerCase(), hashed, 'user']
+  );
+
+  const user = result.rows[0];
+  const portfolioResult = await query(
+    `INSERT INTO portfolios (user_id, name, description, virtual_cash) VALUES ($1, $2, $3, $4) RETURNING id`,
+    [user.id, 'Primary Portfolio', 'Your demo investment portfolio', 100000]
+  );
+
+  await query(`INSERT INTO watchlists (user_id, name) VALUES ($1, $2)`, [user.id, 'My Watchlist']);
+
+  const token = signToken({ id: user.id, email: user.email, role: user.role });
+
+  return res.status(201).json({
+    token,
+    user: {
+      id: user.id,
+      fullName: user.full_name,
+      email: user.email,
+      role: user.role,
+      portfolioId: portfolioResult.rows[0]?.id,
+    },
+  });
+});
+
+router.post('/login', async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  if (!isValidEmail(email) || !isNonEmptyString(password)) {
+    return res.status(400).json({ message: 'Email and password are required.' });
+  }
+
+  const userQuery = await query<{ id: number; full_name: string; email: string; password_hash: string; role: string }>(
+    'SELECT * FROM users WHERE email = $1',
+    [String(email).trim().toLowerCase()]
+  );
+
+  if (userQuery.rows.length === 0) {
+    return res.status(401).json({ message: 'Invalid email or password.' });
+  }
+
+  const user = userQuery.rows[0];
+  const valid = await comparePassword(password, user.password_hash);
+  if (!valid) {
+    return res.status(401).json({ message: 'Invalid email or password.' });
+  }
+
+  const token = signToken({ id: user.id, email: user.email, role: user.role });
+
+  return res.json({
+    token,
+    user: {
+      id: user.id,
+      fullName: user.full_name,
+      email: user.email,
+      role: user.role,
+    },
+  });
+});
+
+router.get('/me', authenticateToken, async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const result = await query<{ id: number; full_name: string; email: string; role: string }>(
+    'SELECT id, full_name, email, role FROM users WHERE id = $1',
+    [user.id]
+  );
+
+  if (!result.rows[0]) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+
+  return res.json({ user: result.rows[0] });
+});
+
+export default router;
